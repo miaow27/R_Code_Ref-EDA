@@ -1,0 +1,116 @@
+---
+title: "EDA_R_toolkit"
+author: "Miao Wang"
+date: "9/18/2018"
+output: html_document
+---
+# Toy Data
+```{r, include=F}
+library(dplyr)
+library(tidyverse)
+str(storms)
+```
+
+# 1. Use `here` for setting relative-path in Rproj
+
+We want to create a R project and always use a relative-path for the file. It is easier for version-control (If data file change location).
+```{r, eval=F}
+library(magrittr)
+library(dplyr)
+library(tidyverse)
+library(zipcode)
+
+dt1 <- readxl::read_xlsx(
+  here::here("data", "001-vendor-data-sample", "01", "cln",
+             "d001-vendor-data-sample-20180914.xlsx")
+) %>%
+  janitor::clean_names()
+```
+
+# 2. Check Missing
+Missing might be in many forms, check unique values of the data field before using. 
+```{r}
+check_missing <- function(.data, j) {
+  temp <- .data[, j]
+  x <- 
+    (temp == "(Unknown)") %>% as.numeric() +
+    (temp == "NULL") %>% as.numeric() +
+    (is.na(temp)) %>% as.numeric() +
+    is.null(temp) %>% as.numeric() +
+    (temp == "") %>% as.numeric() + 
+    (temp == 'Unknown') %>% as.numeric()
+
+  return(c(index = j, 
+           name = colnames(.data)[j], 
+           miss_percent = mean(x))) # return char of 3
+}
+```
+
+## Example 
+```{r}
+storms %>% 
+  map(1:ncol(storms),.f=check_missing,.data = .) %>% 
+  unlist() %>% 
+  matrix(ncol = 3, byrow = T) %>% 
+  as.tibble() %>% 
+  transmute(index = as.numeric(V1),
+            field_name = V2,
+            miss_percent = as.numeric(V3))
+```
+
+# 3. Confirmn High-level information 
+Imagine the data is at transaction level. But we also have bank-level information. We should be careful running the summary on bank-level info and avoid double count. 
+
+This is a code to identify and check whether the given variable is a high-level information. (Do you have multiple possible value for the same unique bank? If so, then that variable might not be bank-level info)
+
+This is very-useful to pre-check the data before building a hirachical data model. 
+
+```{r}
+# check if the field has unique value for a unique id_var
+## only include the field and the identifier field
+check_unique_within_id = function(.data,j_X,j_id){
+    # convenit for looping
+    temp <- .data[,c(j_X,j_id)]
+    colnames(temp) <- c(".X",".id")
+    
+    temp %>% 
+        count(.X,.id) %>% 
+        count(.id) %>% 
+        mutate(non_unique = (nn!=1)) %>% 
+        summarise(all_unique = sum(non_unique)==0, 
+                  lik_non_unique = mean(non_unique)) %>% 
+        bind_cols(.,
+            as.tibble(colnames(.data)[j_X]))
+}
+```
+
+## Examples
+```{r}
+highlevel_j_id = 1
+j_X_range = 1:ncol(storms)
+j_X_range[-highlevel_j_id] %>% map(.f=check_unique_within_id,
+                      .data = storms,
+                      j_id = highlevel_j_id) %>% 
+    bind_rows() %>% 
+    select(value,everything()) %>% 
+    print(n = Inf)
+```
+
+# 4. Check top 10 level for each field
+
+```{r}
+check_top10 <- function(.data, field) {
+  .data %>% 
+    count(!!enquo(field)) %>% 
+    mutate(prop = round(n/sum(n),4)*100) %>% 
+    arrange(desc(prop)) %>% 
+    top_n(10) 
+}
+```
+
+## Example 
+```{r}
+check_top10(storms,wind)
+```
+
+
