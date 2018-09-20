@@ -259,3 +259,53 @@ tempdt %>%
 ```
 
 
+# 8. Scrapping information from online pdf file 
+
+2-digit sic code is downloaded from
+
+https://www.dnb.com/content/dam/english/economic-and.../sic_2_digit_codes.xls. 
+
+3-digit sic code in downloaded from 
+
+https://www.fax-list.com/forms/SICCodeTable(2and3_digits).pdf
+
+
+Those results were compared (selectively) with the official sic code web
+
+https://siccode.com/en/siccode/list/directory/search_keyword
+
+
+```{r}
+library(pdftools)
+
+
+download.file("https://www.fax-list.com/forms/SICCodeTable(2and3_digits).pdf","./sic_code.pdf")
+
+text <- pdf_text("sic_code.pdf")
+text2 <- strsplit(text, "\n")  %>% unlist() %>% as.vector() 
+# one element contains 3 sets of value (for that rows)
+text3 <- strsplit(text2,"       ") %>% unlist() %>% as.vector()
+text4 <- text3[grepl("[0-9]",text3)] # contains at least number 
+text4 <- text4[grepl("[a-z]",text4)] # contain at least alphabetic
+text4 <- c(text4, "491 Electric Services") # manual check and found break 184 
+
+# cleans out each element 
+text5 <- trimws(text4,which="left") # remove the leading space
+
+clean_str <- function(x_str){
+  x <- strsplit(x_str," ") %>% unlist()
+  return(c(x[1],paste0(x[-1],collapse = "_")))
+}
+
+text6 <- map(text5,clean_str) %>% 
+  as.data.frame() %>% 
+  t() %>% 
+  as.tibble() %>% 
+  mutate(V2 = ifelse(substr(V2,start=1,stop=1) =="_",
+                     substr(V2,start=2,stop=length(V2)),
+                     V2)) %>% 
+  arrange(V1) %>% 
+  rename(sic_code=V1, label=V2)
+
+write_csv(text6,"SIC_code_d3.csv")
+```
