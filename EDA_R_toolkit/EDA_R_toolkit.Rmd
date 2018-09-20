@@ -29,8 +29,9 @@ dt1 <- readxl::read_xlsx(
   janitor::clean_names()
 ```
 
-# 2. Check Missing
+# 2. Check Missing for single fields
 Missing might be in many forms, check unique values of the data field before using. 
+
 ```{r}
 check_missing <- function(.data, .field) {
   # Does not work on NA sets
@@ -67,6 +68,34 @@ sub_var %>%
   map_dfr(.x=.,.f=check_missing,
           .data = storms,
           .id="variable")
+```
+# 2.2 Check Missing pattern for entire data 
+```{r}
+# Check
+ tibble(
+     variable = colnames(dt1),
+     n_NA = colSums(is.na(dt1)),
+     n_Unknown = colSums(dt1 == 'Unknown',na.rm=T),
+     n_par_Unknown = colSums(dt1 == '(Unknown)',na.rm=T),
+     n_blank = colSums(dt1 == '',na.rm=T),
+     n_NULL = colSums(dt1 == 'NULL',na.rm = T),
+     n_9999 = colSums(dt1 == '-9999',na.rm=T),
+     n_dot = colSums(dt1 == '.',na.rm = T)) %>%
+     mutate(n_tot = (n_NA+n_Unknown+n_par_Unknown+n_blank+n_NULL+n_9999)/nrow(dt1)) %>%
+     print(n=Inf) %>%
+     summarise(sum(n_NA),
+               sum(n_Unknown),
+               sum(n_par_Unknown),
+               sum(n_blank),
+               sum(n_NULL),
+               sum(n_9999),
+               sum(n_dot)) %>%
+     glimpse()
+ 
+ # select the one you want to turn as NA
+ dt1 <-
+    dt1 %>%
+    replace_with_na_all(condition = ~.x %in% c('Unknown','(Unknown)','-9999'))
 ```
 
 # 3. Confirmn 1-1 Relationship
