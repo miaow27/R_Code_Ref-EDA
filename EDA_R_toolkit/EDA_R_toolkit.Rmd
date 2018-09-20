@@ -155,12 +155,107 @@ plot_top_n <- function(.data,.field,n_top_val){
 }
 ```
 
-# Example
+## Example
 ```{r}
 plot_top_n(storms,"wind",20)
 ```
 
 
+# 6. Vendor & Customer industry relationship
 
+```{r, echo=F}
+dt1 %>% 
+    filter(vendor_sic_cd != '-9999',
+           vendor_sic_cd != '(Unknown)',
+           cust_sic_cd != '-9999',
+           cust_sic_cd != '(Unknown)') %>% 
+    mutate(vendor_segment = substr(vendor_sic_cd,start = 1, stop = 2) %>% as.numeric(),
+           cust_segment = substr(cust_sic_cd,start = 1, stop = 2) %>% as.numeric()) %>% 
+    mutate(vendor_segment = cut(vendor_segment,breaks = c(1,10,15,18,20,40,50,52,60,70,91,99,Inf),
+                         labels = c("Agr_Fore_Fish",
+                                    "Mining",
+                                    "Constu",
+                                    "notused",
+                                    "Manufact",
+                                    "Transp_Commu_Electric_Gas_San",
+                                    "WS_Trade",
+                                    "RT_Trade",
+                                    "Fin_Insu_REst",
+                                    "Services",
+                                    "Pub_Adminn",
+                                    "Nonclass"),
+                         include.lowest = T,
+                         right = F),
+           cust_segment = cut(cust_segment,breaks = c(1,10,15,18,20,40,50,52,60,70,91,99,Inf),
+                              labels = c("Agr_Fore_Fish",
+                                    "Mining",
+                                    "Constu",
+                                    "notused",
+                                    "Manufact",
+                                    "Transp_Commu_Electric_Gas_San",
+                                    "WS_Trade",
+                                    "RT_Trade",
+                                    "Fin_Insu_REst",
+                                    "Services",
+                                    "Pub_Adminn",
+                                    "Nonclass"),
+                         include.lowest = T,
+                         right = F)) %>% 
+  count(cust_segment, vendor_segment) %>%
+  ggplot(mapping = aes(x = cust_segment, y = vendor_segment)) +
+    geom_tile(mapping = aes(fill = n),colour = "black")+
+    scale_fill_gradient(low = "white",high = "blue")
+
+```
+
+# 7. Vendor & Customer Distance (Caluclated Based on Zip-code)
+
+We will take out opportunity with Unknown/Missing Zip-code. Get the longitude, and latitude using `zipcode` package and then get the distance between vendero and customer unsing `gdist()` from the `Imap` package. To Save Time I only randomly select 50,000 records.
+
+```{r, echo=F}
+# create a variable called gdist_cust_vendor 
+library(zipcode)
+library(Imap)
+data(zipcode)
+
+# 1. get latitude, longtitude
+tempdt <- 
+    dt1[sample(nrow(dt1), 50000),] %>% 
+    left_join(zipcode,by = c("vendor_location_zip_code"="zip")) %>%  
+    rename(vendor_latitude = latitude,
+           vendor_longitude = longitude) %>% 
+    left_join(zipcode,by = c("cust_zip_code"="zip")) %>% 
+     rename(cust_latitude = latitude,
+           cust_longitude = longitude) %>% 
+    mutate(gdist_vendor_cust = NA)
+
+# 2. calculate distance, have to use for-loop becuase of the building function 
+for (i in 1:nrow(tempdt)){
+  tempdt[i,"gdist_vendor_cust"] <-
+      gdist(lon.1 = tempdt[i,"vendor_longitude"] %>% unlist(),
+      lat.1 = tempdt[i,"vendor_latitude"]%>% unlist(),
+      lon.2 = tempdt[i,"cust_longitude"]%>% unlist(),
+      lat.2 = tempdt[i,"cust_latitude"]%>% unlist())
+}
+
+# 3. draw general distance 
+tempdt %>% 
+    ggplot() + 
+    geom_histogram(mapping = aes(x = gdist_vendor_cust),binwidth=20)+ # by 20 miles
+    ggtitle("Distiance between Vendor & Customer By mile (random sample)")
+
+    
+# Results Different From Below !!!
+# # 4. compared with simpling subtracting zip-code value 
+# dt1 %>% 
+#     head(10000) %>% 
+#     filter(!is.na(as.numeric(cust_zip_code)), # remove NA,null
+#            !is.na(as.numeric(vendor_location_zip_code))) %>%
+#     mutate(zip_dist = abs(as.numeric(cust_zip_code)-
+#                               as.numeric(vendor_location_zip_code))) %>% 
+#     ggplot() +
+#     geom_histogram(mapping = aes(x = zip_dist),binwidth = 50)
+
+```
 
 
