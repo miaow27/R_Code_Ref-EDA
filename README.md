@@ -12,7 +12,7 @@ contains R script example for the following typical date transformation problem:
 
 #### Data Taks: 
 Imageine the data looks like this: 
-| member ID | start date | end date | enrolled plan |
+|: member ID |: start date |: end date |: enrolled plan |
 |A |2015-01-01| 2019-12-31| Atena|
 |B | 2015-01-01|2017-03-31| BCBS |
 |B | 2018-02-01|2019-12-31| Atena |
